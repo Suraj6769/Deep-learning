@@ -1,0 +1,90 @@
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+from PIL import Image
+import numpy as np
+import cv2
+import av
+
+# Function to load the model with caching
+@st.cache(allow_output_mutation=True)
+def load_model_once():
+    model_path = r'D:\Download\Img_Dog_classifier\best_model (1).h5'  # Update with your model path
+    return load_model(model_path)
+
+# Function to classify prediction
+def classify(prediction):
+    if prediction < 0.5:
+        return "Cat"
+    else:
+        return "Dog"
+
+# Streamlit app configuration
+st.set_page_config(page_title="🐾 Cat vs Dog Classifier 🐶", page_icon=":cat:", layout="wide")
+st.title("🐾 Cat vs Dog Classifier 🐶")
+st.markdown("---")
+
+# Load the pre-trained model
+model = load_model_once()
+
+# Define a video transformer to process the video frames
+class VideoTransformer(VideoTransformerBase):
+    def __init__(self):
+        super().__init__()
+        self.model = model
+
+    def transform(self, frame):
+        try:
+            # Convert av.video.frame.VideoFrame to numpy array
+            frame_data = frame.to_ndarray(format="bgr24")
+
+            # Convert the frame data to Image
+            img = Image.fromarray(frame_data)
+
+            # Resize image to match model input size (224x224) and convert to RGB (if necessary)
+            img = img.resize((224, 224))
+            img_rgb = img.convert('RGB')
+
+            # Convert image to array and preprocess for model input
+            img_array = img_to_array(img_rgb)
+            img_array = img_array / 255.0
+            img_array = np.expand_dims(img_array, axis=0)
+
+            # Prediction
+            pred = self.model.predict(img_array)
+            CLASS_ID = pred[0][0]
+
+            # Classify prediction
+            classification = classify(CLASS_ID)
+
+            # Display the prediction result on the frame using OpenCV
+            annotated_frame = np.array(img_rgb)
+            annotated_frame = cv2.putText(annotated_frame, f"Prediction: {classification}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+            # Convert image back to RGB format for display in Streamlit
+            img_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+
+            # Return the annotated frame
+            return img_rgb
+
+        except Exception as e:
+            st.error(f"Error processing frame: {e}")
+            return frame_data  # Return original frame data in case of error
+
+# Sidebar instructions and information
+st.sidebar.header("Instructions")
+st.sidebar.markdown("1. Click 'Start Camera' to activate your camera.")
+st.sidebar.markdown("2. Point your camera to capture an image.")
+st.sidebar.markdown("3. The app will predict if the image contains a cat or a dog.")
+
+# Main content for camera streaming and classification
+st.markdown("### Webcam Feed")
+webrtc_ctx = webrtc_streamer(key="example", video_transformer_factory=VideoTransformer)
+
+if not webrtc_ctx.state.playing:
+    st.markdown("### No webcam detected. Please enable your webcam or check your connection.")
+
+# Footer
+st.markdown("---")
+st.markdown("Developed by [Your Name](https://github.com/your-username)")

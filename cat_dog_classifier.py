@@ -97,4 +97,3 @@ st.sidebar.info("This app uses a pre-trained neural network to classify images a
 # Footer
 st.markdown("---")
 st.markdown("Developed by [Suraj Vishwakarma](https://www.linkedin.com/in/surajvishwakarma11/)")
-
